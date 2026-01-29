@@ -270,17 +270,43 @@ function renderSummary() {
 }
 
 function contarMetasDoMes(mes, year) {
-  const mesAno = `${year}-${String(mes + 1).padStart(2, '0')}`
-  let total = 0
-  Object.entries(state.historico).forEach(([chave, valor]) => { if (chave.startsWith(mesAno) && valor > 0) total += valor })
-  return total
+  const mesAno = `${year}-${String(mes + 1).padStart(2, '0')}`;
+  let total = 0;
+
+  if (state.historico && typeof state.historico === 'object') {
+    Object.entries(state.historico).forEach(([chave, valor]) => {
+      if (chave.startsWith(mesAno) && Array.isArray(valor)) {
+        total += valor.length;
+      }
+    });
+  }
+
+  return total;
 }
 
 function getMetasDoMes(mes, year) {
-  const mesAno = `${year}-${String(mes + 1).padStart(2, '0')}`
-  const metas = {}
-  ['Segunda','Terça','Quarta','Quinta','Sexta'].forEach(dia => { metas[dia] = 0; Object.entries(state.historico).forEach(([chave, valor]) => { if (chave.startsWith(mesAno) && chave.includes(dia) && valor > 0) metas[dia] += valor }) })
-  return metas
+  const mesAno = `${year}-${String(mes + 1).padStart(2, '0')}`;
+  const metas = {
+    Segunda: [],
+    Terça: [],
+    Quarta: [],
+    Quinta: [],
+    Sexta: []
+  };
+
+  if (state.historico && typeof state.historico === 'object') {
+    Object.entries(state.historico).forEach(([chave, valor]) => {
+      if (chave.startsWith(mesAno) && Array.isArray(valor)) {
+        valor.forEach(meta => {
+          if (meta.dia && metas[meta.dia]) {
+            metas[meta.dia].push(meta);
+          }
+        });
+      }
+    });
+  }
+
+  return metas;
 }
 
 function renderMonthlyStats() {
