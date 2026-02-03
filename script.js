@@ -69,28 +69,37 @@ function setView(v) {
   btnSemanal.classList.toggle('bg-gradient-to-r', v === 'semanal')
   btnMensal.classList.toggle('bg-gradient-to-r', v === 'mensal')
   if (v === 'mensal') renderMonthlyStats()
+  if (v === 'semanal') render()
 }
+
 
 btnSemanal.onclick = () => setView('semanal')
 btnMensal.onclick = () => setView('mensal')
+
+function render() {
+  renderTabs()
+  renderGrid()
+  renderSummary()
+}
 
 function toggleFeito(index) {
   const ex = state.dados[state.dia][index]
   ex.feito = !ex.feito
 
   const hoje = new Date()
-  const mesAno = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`
-  const dia_mes = String(hoje.getDate()).padStart(2, '0')
-  const chave = `${mesAno}-${dia_mes}-${DIAS[state.dia]}`
+  const diaSemana = DIAS[hoje.getDay()]
+  const chave = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}-${diaSemana}`
 
   const novoHistorico = { ...state.historico }
-  if (ex.feito) novoHistorico[chave] = (novoHistorico[chave] || 0) + 1
-  else novoHistorico[chave] = Math.max(0, (novoHistorico[chave] || 0) - 1)
+  // se pelo menos 1 exercício do dia foi feito, marca o dia como concluído
+  const feitosNoDia = state.dados[state.dia].filter(e => e.feito).length
+  novoHistorico[chave] = feitosNoDia > 0
 
   salvar()
   salvarHistorico(novoHistorico)
   render()
 }
+
 
 function editar(index) {
   state.editingIndex = index
@@ -159,7 +168,7 @@ function renderGrid() {
     }
 
     const body = document.createElement('div')
-    body.className = 'p-5 border-t border-gray-700/30'
+    body.className = 'p-5 border-t border-gray-700/30'  
     body.innerHTML = `<p class="text-gray-300 mb-4 text-center font-semibold">${ex.obs || 'Sem observações'}</p>`
 
     const btns = document.createElement('div')
@@ -308,11 +317,11 @@ function getMetasDoMes(mes, year) {
 
   return metas;
 }
-
 function renderMonthlyStats() {
   const ano = new Date().getFullYear()
   const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
   mensalView.innerHTML = ''
+
   const seletor = document.createElement('div')
   seletor.className = 'flex justify-center gap-4 mb-8'
   seletor.innerHTML = `<span class="text-white text-2xl font-bold">${ano}</span>`
@@ -321,15 +330,49 @@ function renderMonthlyStats() {
   const grid = document.createElement('div')
   grid.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
 
-  meses.forEach((mes, index) => {
-    const metas = getMetasDoMes(index, ano)
-    const totalMetas = contarMetasDoMes(index, ano)
+  meses.forEach((mesNome, mesIndex) => {
+    const diasNoMes = new Date(ano, mesIndex + 1, 0).getDate()
+    const diasHTML = []
+    let totalFeitos = 0
+
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const date = new Date(ano, mesIndex, dia)
+      const diaSemana = DIAS[date.getDay()]
+      if (!['Segunda','Terça','Quarta','Quinta','Sexta'].includes(diaSemana)) continue
+
+      const chave = `${ano}-${String(mesIndex + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}-${diaSemana}`
+      const feito = state.historico[chave] === true
+
+      if (feito) totalFeitos++
+
+      diasHTML.push(`
+        <div class="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg">
+          <span class="text-gray-300 text-sm font-semibold">${diaSemana} ${String(dia).padStart(2, '0')}</span>
+          ${feito ? '<span class="text-green-400 font-bold">✓</span>' : '<span class="text-gray-500">—</span>'}
+        </div>
+      `)
+    }
+
+    const totalDias = diasHTML.length
+    const taxa = totalDias > 0 ? Math.round((totalFeitos / totalDias) * 100) : 0
+
     const div = document.createElement('div')
     div.className = 'bg-gray-800/60 rounded-xl p-6 border border-gray-700/40 shadow-lg'
     div.innerHTML = `
-      <div class="mb-4 pb-4 border-b border-gray-700/40"><h3 class="text-2xl font-black text-white mb-1">${mes}</h3><p class="text-purple-400 font-bold text-lg">🎯 ${totalMetas} metas cumpridas</p></div>
-      <div class="space-y-2">${['Segunda','Terça','Quarta','Quinta','Sexta'].map(d => `<div class="flex justify-between items-center p-2 bg-gray-700/30 rounded-lg"><span class="text-gray-300 font-semibold">${d}</span><div>${metas[d] > 0 ? `<span class="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-3 py-1 rounded-lg font-bold text-sm">✓ ${metas[d]}</span>` : `<span class="text-gray-500 text-sm">—</span>`}</div></div>`).join('')}</div>
-      <div class="mt-4 pt-4 border-t border-gray-700/40"><div class="flex justify-between items-center mb-2"><span class="text-gray-300 text-sm font-semibold">Taxa de conclusão:</span><span class="text-cyan-400 font-bold">${totalMetas > 0 ? Math.round((totalMetas / (5 * 4)) * 100) : 0}%</span></div><div class="w-full bg-gray-700 rounded-full h-2"><div class="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full" style="width: ${Math.min((totalMetas / (5 * 4)) * 100, 100)}%"></div></div></div>
+      <div class="mb-4 pb-4 border-b border-gray-700/40">
+        <h3 class="text-2xl font-black text-white mb-1">${mesNome}</h3>
+        <p class="text-purple-400 font-bold text-lg">🎯 ${totalFeitos} dias concluídos</p>
+      </div>
+      <div class="space-y-2">${diasHTML.join('')}</div>
+      <div class="mt-4 pt-4 border-t border-gray-700/40">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-gray-300 text-sm font-semibold">Taxa de conclusão:</span>
+          <span class="text-cyan-400 font-bold">${taxa}%</span>
+        </div>
+        <div class="w-full bg-gray-700 rounded-full h-2">
+          <div class="bg-gradient-to-r from-pink-500 to-purple-500 h-2 rounded-full" style="width: ${taxa}%"></div>
+        </div>
+      </div>
     `
     grid.appendChild(div)
   })
@@ -337,8 +380,4 @@ function renderMonthlyStats() {
   mensalView.appendChild(grid)
 }
 
-function render() {
-  renderTabs(); renderGrid(); renderSummary();
-}
-
-render();
+render()
